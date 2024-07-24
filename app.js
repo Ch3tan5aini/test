@@ -1,13 +1,12 @@
 import 'dotenv/config';
 import express from "express";
-import ejs from "ejs";
 import bodyParser from "body-parser";
 import mongoose from "mongoose";
-import encrypt from "mongoose-encryption";
-import md5 from "md5";
+import bcrypt from "bcryptjs"
 
 const app = express();
 const port = 3000;
+const saltRound = 5;
 
 mongoose.connect("mongodb://localhost:27017/UserDB");
 
@@ -33,12 +32,19 @@ app.get("/register", (req, res)=>{
 })
 app.post("/register", (req, res)=>{
     try {
-        const newUser = new User({
-            email: req.body.username,
-            password: md5(req.body.password)
+        bcrypt.hash(req.body.password, saltRound, (err, hash)=>{
+            if(err){
+                res.send("error hashing password" , err)
+            }else{
+                const newUser = new User({
+                    email: req.body.username,
+                    password: hash
+                })
+                newUser.save()
+                res.render("secrets")
+            }
         })
-        newUser.save()
-        res.render("secrets")
+   
     } catch (error) {
         res.send("error")
     }
@@ -46,15 +52,22 @@ app.post("/register", (req, res)=>{
 
 app.post("/login", async(req, res)=>{
     const userName = req.body.username;
-    const password = md5(req.body.password)
+    const password = req.body.password
 
     const foundUser = await User.findOne({email: userName})
     if(foundUser){
-        if(foundUser.password === password){
-            res.render("secrets")
-        }else{
-            res.send("Incorrect Password")
-        }
+        bcrypt.compare(password, foundUser.password, (err, result)=>{
+            if(err){
+                res.render("Error hashing Password ", err)
+            }else{
+                if(!result){
+                    console.log("error");
+                }
+                else{
+                res.render("secrets")
+            }
+            }
+        })
     }else{
         res.send("Username Not Found")
     }
